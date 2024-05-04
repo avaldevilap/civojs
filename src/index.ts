@@ -1,3 +1,4 @@
+import { asClass, createContainer } from 'awilix';
 import {
   AccountApi,
   ActionApi,
@@ -29,6 +30,8 @@ import {
   VolumeApi,
   WebhookApi,
 } from './resources';
+import AccountService from './services/accounts';
+import RegionsService from './services/regions';
 
 /**
  * A comprehensive API client for the Civo cloud platform.
@@ -99,3 +102,17 @@ export class Civo {
     this.webhooks = new WebhookApi(config);
   }
 }
+
+interface CivoContainer {
+  accountsService: AccountService;
+  regionsService: RegionsService;
+}
+
+const container = createContainer<CivoContainer>();
+container.register({
+  accountsService: asClass(AccountService).scoped(),
+  regionsService: asClass(RegionsService).scoped(),
+});
+
+export const accountsService = container.resolve('accountsService');
+export const regionsService = container.resolve('regionsService');

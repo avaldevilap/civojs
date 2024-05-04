@@ -1,3 +1,10 @@
+import { ofetch } from 'ofetch';
+
+export const $fetch = ofetch.create({
+  baseURL: 'https://api.civo.com/v2',
+  headers: { Authorization: `Bearer ${import.meta.env.CIVO_API_KEY}` },
+});
+
 const adjectives = [
   'aged',
   'ancient',
