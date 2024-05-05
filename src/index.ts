@@ -1,3 +1,8 @@
+import { BunRuntime } from '@effect/platform-bun';
+import * as Http from '@effect/platform/HttpClient';
+import type * as ParseResult from '@effect/schema/ParseResult';
+import * as Schema from '@effect/schema/Schema';
+import { Context, Effect, Layer } from 'effect';
 import {
   AccountApi,
   ActionApi,
@@ -99,3 +104,72 @@ export class Civo {
     this.webhooks = new WebhookApi(config);
   }
 }
+
+class Feature extends Schema.Class<Feature>('Feature')({
+  iaas: Schema.Boolean,
+  kubernetes: Schema.Boolean,
+  object_store: Schema.Boolean,
+  loadbalancer: Schema.Boolean,
+  dbaas: Schema.Boolean,
+  volume: Schema.Boolean,
+  paas: Schema.Boolean,
+  kfaas: Schema.Boolean,
+  public_ip_node_pools: Schema.Boolean,
+}) {}
+
+class Region extends Schema.Class<Region>('Region')({
+  code: Schema.String,
+  name: Schema.String,
+  type: Schema.String,
+  out_of_capacity: Schema.Boolean,
+  country: Schema.String,
+  country_name: Schema.String,
+  features: Feature,
+  default: Schema.Boolean,
+}) {}
+
+// type RegionSchema = Schema.Schema.Type<typeof Region>;
+
+interface RegionService {
+  readonly list: () => Effect.Effect<
+    Region,
+    Http.error.HttpClientError | Http.body.BodyError | ParseResult.ParseError
+  >;
+}
+
+const RegionService = Context.GenericTag<RegionService>('RegionService');
+
+const makeRegionService = Effect.gen(function* (_) {
+  const defaultClient = yield* _(Http.client.Client);
+  const clientWithBaseUrl = defaultClient.pipe(
+    Http.client.filterStatusOk,
+    Http.client.mapRequest(Http.request.prependUrl('https://api.civo.com/v2')),
+  );
+
+  // const addTodoWithoutIdBody = Http.request.schemaBody(TodoWithoutId);
+  // const create = (todo: TodoWithoutId) =>
+  //   addTodoWithoutIdBody(Http.request.post('/todos'), todo).pipe(
+  //     Effect.flatMap(clientWithBaseUrl),
+  //     Http.response.schemaBodyJsonScoped(Todo),
+  //   );
+
+  const list = () =>
+    clientWithBaseUrl(Http.request.get('/regions')).pipe(
+      Http.response.schemaBodyJsonScoped(Region),
+    );
+
+  return RegionService.of({ list });
+});
+
+export const RegionServiceLive = Layer.effect(
+  RegionService,
+  makeRegionService,
+).pipe(Layer.provide(Http.client.layer));
+
+export const regions = Effect.flatMap(RegionService, (regions) =>
+  regions.list(),
+).pipe(
+  Effect.tap(Effect.log),
+  Effect.provide(RegionServiceLive),
+  // BunRuntime.runMain,
+);
